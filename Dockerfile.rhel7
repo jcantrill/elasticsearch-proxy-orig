@@ -1,0 +1,18 @@
+FROM registry.svc.ci.openshift.org/openshift/release:golang-1.10 AS builder
+WORKDIR  /go/src/github.com/openshift/elasticsearch-proxy
+COPY . .
+RUN go build .
+
+FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
+COPY --from=builder /go/src/github.com/openshift/elasticsearch-proxy/_output/bin/elasticsearch-proxy /usr/bin/elasticsearch-proxy
+ENTRYPOINT ["/usr/bin/elasticsearch-proxy"]
+LABEL io.k8s.display-name="OpenShift ElasticSearch Proxy" \
+      io.k8s.description="OpenShift ElasticSearch Proxy component of OpenShift Cluster Logging" \
+      maintainer="OpenShift Cluster Logging Team <aos-logging@redhat.com>" \
+      name="openshift/elasticsearch-proxy" \
+      version="v4.0.0" \
+      License="GPLv2+" \
+      architecture="x86_64" \
+      vendor="Red Hat" \
+      io.openshift.tags="openshift" \
+      com.redhat.component="golang-github-openshift-elasticsearch-proxy-container"
