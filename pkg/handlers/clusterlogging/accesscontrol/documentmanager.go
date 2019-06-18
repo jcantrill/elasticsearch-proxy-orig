@@ -9,16 +9,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type securityClient interface {
-	FetchRolesMapping() (*security.RolesMapping, error)
-	FetchRoles() (*security.Roles, error)
-	FlushACL(doc security.Serializable) error
-}
-
 //DocumentManager understands how to load and sync ACL documents
 type DocumentManager struct {
 	cl.ExtConfig
-	securityClient securityClient
+	securityClient clients.SecurityClient
 }
 
 //NewDocumentManager creates an instance or returns error
@@ -54,10 +48,6 @@ func (dm *DocumentManager) SyncACL(userInfo *cl.UserInfo) error {
 	return nil
 }
 
-// func (dm *DocumentManager) reloadConfig() error {
-// 	dm.sgclient.
-// }
-
 func (dm *DocumentManager) writeACL(docs *security.ACLDocuments) error {
 	log.Debug("Writing ACLs...")
 	if err := dm.securityClient.FlushACL(&docs.Roles); err != nil {
@@ -72,17 +62,9 @@ func (dm *DocumentManager) writeACL(docs *security.ACLDocuments) error {
 func (dm *DocumentManager) loadACL() (*security.ACLDocuments, error) {
 	log.Debug("Loading ACLs...")
 	//TODO work on mget of roles/mappings
-	roles, err := dm.securityClient.FetchRoles()
+	docs, err := dm.securityClient.FetchACLs()
 	if err != nil {
 		return nil, err
-	}
-	rolesmapping, err := dm.securityClient.FetchRolesMapping()
-	if err != nil {
-		return nil, err
-	}
-	docs := &security.ACLDocuments{
-		Roles:        *roles,
-		RolesMapping: *rolesmapping,
 	}
 	log.Debugf("Loaded ACLs: %v", docs)
 	return docs, nil

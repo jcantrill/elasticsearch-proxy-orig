@@ -12,6 +12,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	DocTypeRoles        = "roles"
+	DocTypeRolesmapping = "rolesmapping"
+)
+
 type ACLDocuments struct {
 	Roles
 	RolesMapping
@@ -44,10 +49,10 @@ type IndexPermissions map[string]DocumentPermissions
 type DocumentPermissions map[string]Permissions
 
 func (roles *Roles) Type() string {
-	return "roles"
+	return DocTypeRoles
 }
 func (rolesmapping *RolesMapping) Type() string {
-	return "rolesmapping"
+	return DocTypeRolesmapping
 }
 func (roles *Roles) ToYaml() (string, error) {
 	return toYaml(roles)

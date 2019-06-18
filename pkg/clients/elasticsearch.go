@@ -1,28 +1,46 @@
 package clients
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"strings"
 
 	"github.com/bitly/go-simplejson"
-	"github.com/oliveagle/jsonpath"
 	log "github.com/sirupsen/logrus"
-)
-
-var (
-	errorLookup, _ = jsonpath.Compile("$.error")
 )
 
 const (
 	contentTypeJSON = "application/json"
 )
 
+type MGetRequest struct {
+	Docs []MGetItem `json:"docs"`
+}
+
+type MGetItem struct {
+	Type string `json:"_type,omitempty"`
+	Id   string `json:"_id,omitempty"`
+}
+
+type MGetResponse struct {
+	Docs []MGetResponseItem `json:"docs"`
+}
+type MGetResponseItem struct {
+	Index   string                 `json:"_index,omitempty"`
+	Version int                    `json:"_version,omitempty"`
+	Found   bool                   `json:"found,omitempty"`
+	Source  map[string]interface{} `json:"_source,omitempty"`
+	MGetItem
+}
+
 //ElasticsearchClient is an admin client to query a local instance of Elasticsearch
 type ElasticsearchClient interface {
 	Get(path string) (string, error)
+	MGet(index string, items MGetRequest) (*MGetResponse, error)
 	Delete(path string) (string, error)
 	Put(path string, body string) (string, error)
 	Post(path string, body string) (string, error)
@@ -69,6 +87,38 @@ func url(elasticsearchURL, path string) string {
 	return elasticsearchURL + path
 }
 
+//MGet the items
+func (es *DefaultElasticsearchClient) MGet(index string, items MGetRequest) (*MGetResponse, error) {
+	log.Tracef("Converting MGet items to json: %+v", items)
+	var out []byte
+	var err error
+	if out, err = json.Marshal(items); err != nil {
+		return nil, err
+	}
+	request, err := http.NewRequest("GET", url(es.serverURL, index+"/_mget"), bytes.NewReader(out))
+	if err != nil {
+		log.Tracef("Error executing Elasticsearch GET %v", err)
+		return nil, err
+	}
+	request.Header.Set("Content-Type", contentTypeJSON)
+	var resp *http.Response
+	resp, err = es.client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	bodyAsString, err := readBody(resp)
+	if err != nil {
+		log.Tracef("Eror reading response body in MGet %v", err)
+		return nil, err
+	}
+	log.Tracef("Unmarshalling response body in MGet: %v", bodyAsString)
+	mgetResponse := &MGetResponse{}
+	if err = json.Unmarshal([]byte(bodyAsString), mgetResponse); err != nil {
+		return nil, err
+	}
+	return mgetResponse, nil
+}
+
 //Get the content at the path
 func (es *DefaultElasticsearchClient) Get(path string) (string, error) {
 	url := url(es.serverURL, path)
@@ -93,21 +143,17 @@ func readBody(resp *http.Response) (string, error) {
 		return "", err
 	}
 	log.Tracef("Response body: %v", body)
-	result, err := body.String()
-	if err != nil {
-		return "", err
-	}
 	if resp.StatusCode != 200 {
 		log.Trace("Additionally inspecting result of non 200 response...")
 		errorBody := body.Get("error")
 		log.Tracef("errBody: %v", errorBody)
-		result, err = errorBody.String()
-		if err != nil {
-			log.Tracef("Error trying to decode json response %q", err)
-			return "", err
-		}
+		return errorBody.MustString(), nil
 	}
-	return result, nil
+	result, err := body.Encode()
+	if err != nil {
+		return "", err
+	}
+	return string(result), nil
 }
 
 //Put submits a PUT request to ES assuming the given body is of type 'application/json'
