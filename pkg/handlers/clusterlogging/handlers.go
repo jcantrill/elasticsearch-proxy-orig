@@ -5,7 +5,7 @@ import (
 
 	"github.com/bitly/go-simplejson"
 	"github.com/openshift/elasticsearch-proxy/pkg/clients"
-	"github.com/openshift/elasticsearch-proxy/pkg/handlers"
+	extensions "github.com/openshift/elasticsearch-proxy/pkg/handlers"
 	ac "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/accesscontrol"
 	config "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/types"
 	log "github.com/sirupsen/logrus"
@@ -19,7 +19,7 @@ type extension struct {
 	//all proxy logic is skipped (e.g. fluent)
 	whitelisted     sets.String
 	documentManager *ac.DocumentManager
-	osClient        *clients.OpenShiftClient
+	osClient        clients.OpenShiftClient
 	config          config.ExtConfig
 }
 

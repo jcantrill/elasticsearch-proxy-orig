@@ -12,6 +12,8 @@ import (
 
 const (
 	headerAuthorization     = "Authorization"
+	headerForwardedUser     = "X-Forwarded-User"
+	headerForwardedRoles    = "X-Forwarded-Roles"
 	serviceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 )
 
@@ -24,11 +26,11 @@ type backendRoleConfig struct {
 
 type bearerTokenExtension struct {
 	options            *extensions.Options
-	osClient           *clients.OpenShiftClient
+	osClient           clients.OpenShiftClient
 	backendRoleConfigs map[string]backendRoleConfig
 }
 
-//NewHandlers is the initializer for clusterlogging extensions
+//NewHandlers is the initializer for this extension
 func NewHandlers(opts *extensions.Options) (_ []extensions.RequestHandler) {
 	osClient, err := clients.NewOpenShiftClient(*opts)
 	if err != nil {
@@ -66,7 +68,7 @@ func (ext *bearerTokenExtension) Process(req *http.Request, context *extensions.
 	context.UserName = json.UserName()
 	log.Debugf("User is %q", json.UserName())
 	if context.UserName != "" {
-		req.Header.Set("X-Forwarded-User", context.UserName)
+		req.Header.Set(headerForwardedUser, context.UserName)
 	}
 	ext.fetchRoles(req, context)
 	return req, nil
@@ -79,7 +81,7 @@ func (ext *bearerTokenExtension) fetchRoles(req *http.Request, context *extensio
 			log.Debugf("%q for %q SAR: %v", context.UserName, name, allowed)
 			if allowed {
 				context.Roles = append(context.Roles, name)
-				req.Header.Add("X-Forwarded-Roles", name)
+				req.Header.Add(headerForwardedRoles, name)
 			}
 		} else {
 			log.Warnf("Unable to evaluate %s SAR for user %s", name, context.UserName)

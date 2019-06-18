@@ -27,7 +27,7 @@ type ProxyServer struct {
 	requestHandlers []extensions.RequestHandler
 }
 
-//RegisterRequestHandlers adds request handlers to the oauthproxy
+//RegisterRequestHandlers adds request handlers to the
 func (p *ProxyServer) RegisterRequestHandlers(reqHandlers []extensions.RequestHandler) {
 	p.requestHandlers = append(p.requestHandlers, reqHandlers...)
 }
