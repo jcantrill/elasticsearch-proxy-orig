@@ -41,7 +41,7 @@ func main() {
 	flagSet.String("tls-cert", "", "path to certificate file")
 	flagSet.String("tls-key", "", "path to private key file")
 	flagSet.StringVar(&clientCA, "tls-client-ca", clientCA, "path to a CA file for admitting client certificates.")
-	flagSet.Var(&upstreams, "upstream", "the http url(s) of the upstream endpoint or file:// paths for static files. Routing is based on the path")
+	flagSet.Var(&upstreams, "upstream", "the http url(s) of the upstream endpoint")
 	flagSet.Bool("ssl-insecure-skip-verify", false, "skip validation of certificates presented when using HTTPS")
 	flagSet.String("debug-address", "", "[http://]<addr>:<port> or unix://<path> to listen on for debug and requests")
 

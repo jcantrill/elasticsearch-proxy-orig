@@ -17,7 +17,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type OpenShiftClient struct {
+type OpenShiftClient interface {
+	Get(path, token string) (*simplejson.Json, error)
+
+	//TokenReview performs a tokenreview for a given token submitting to the apiserver
+	//using the serviceaccount token. It returns a simplejson object of the response
+	TokenReview(token string) (*TokenReview, error)
+	SubjectAccessReview(user, namespace, verb, resource, resourceAPIGroup string) (bool, error)
+}
+
+type DefaultOpenShiftClient struct {
 	//TODO Replace me with kubeclient
 	httpClient *http.Client
 	token      string
@@ -39,7 +48,7 @@ func (t *TokenReview) Groups() []string {
 	return t.GetPath("status", "user", "groups").MustStringArray([]string{})
 }
 
-func (c *OpenShiftClient) Get(path, token string) (*simplejson.Json, error) {
+func (c *DefaultOpenShiftClient) Get(path, token string) (*simplejson.Json, error) {
 	if token == "" {
 		return nil, fmt.Errorf("Unable to perform GET (%s) with empty token", path)
 	}
@@ -52,7 +61,7 @@ func (c *OpenShiftClient) Get(path, token string) (*simplejson.Json, error) {
 
 //TokenReview performs a tokenreview for a given token submitting to the apiserver
 //using the serviceaccount token. It returns a simplejson object of the response
-func (c *OpenShiftClient) TokenReview(token string) (*TokenReview, error) {
+func (c *DefaultOpenShiftClient) TokenReview(token string) (*TokenReview, error) {
 	log.Debug("Performing TokenReview...")
 	spec := simplejson.New()
 	spec.Set("token", token)
@@ -75,7 +84,7 @@ func (c *OpenShiftClient) TokenReview(token string) (*TokenReview, error) {
 	return &TokenReview{resp}, nil
 }
 
-func (c *OpenShiftClient) SubjectAccessReview(user, namespace, verb, resource, resourceAPIGroup string) (bool, error) {
+func (c *DefaultOpenShiftClient) SubjectAccessReview(user, namespace, verb, resource, resourceAPIGroup string) (bool, error) {
 	log.Debug("Performing SubjectAccessReview...")
 	resourceAttributes := simplejson.New()
 	resourceAttributes.Set("verb", verb)
@@ -159,7 +168,7 @@ func getKubeAPIURLWithPath(path string) *neturl.URL {
 }
 
 // NewOpenShiftClient returns a client for connecting to the master.
-func NewOpenShiftClient(opt ext.Options) (*OpenShiftClient, error) {
+func NewOpenShiftClient(opt ext.Options) (OpenShiftClient, error) {
 	log.Tracef("Creating new OpenShift client with: %+v", opt)
 	//defaults
 	capaths := []string{"/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"}
@@ -173,7 +182,7 @@ func NewOpenShiftClient(opt ext.Options) (*OpenShiftClient, error) {
 		return nil, err
 	}
 
-	return &OpenShiftClient{
+	return &DefaultOpenShiftClient{
 		&http.Client{
 			Jar: http.DefaultClient.Jar,
 			Transport: &http.Transport{

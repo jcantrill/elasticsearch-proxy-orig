@@ -10,11 +10,26 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type ESSecurityClient struct {
-	esClient *ElasticsearchClient
+//ESSecurityClient for reading and writing security documents
+type ESSecurityClient interface {
+
+	//FetchRolesMapping for security
+	FetchRolesMapping() (*security.RolesMapping, error)
+
+	//FetchRoles for security
+	FetchRoles() (*security.Roles, error)
+
+	//FlushACL documents from the manager to Elasticsearch
+	FlushACL(doc security.Serializable) error
 }
 
-func NewESSecurityClient(opts ext.Options) (*ESSecurityClient, error) {
+//DefaultESSecurityClient implementation
+type DefaultESSecurityClient struct {
+	esClient ElasticsearchClient
+}
+
+//NewESSecurityClient initializes the client
+func NewESSecurityClient(opts ext.Options) (ESSecurityClient, error) {
 	if opts.UpstreamURL == nil {
 		return nil, fmt.Errorf("The UpstreamURL proxy URL is nil")
 	}
@@ -22,7 +37,7 @@ func NewESSecurityClient(opts ext.Options) (*ESSecurityClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ESSecurityClient{esClient}, nil
+	return &DefaultESSecurityClient{esClient}, nil
 }
 
 func decodeACLDocument(resp, docType string) (string, error) {
@@ -43,7 +58,7 @@ func decodeACLDocument(resp, docType string) (string, error) {
 	return string(unencoded), nil
 }
 
-func (sg *ESSecurityClient) FetchRoles() (*security.Roles, error) {
+func (sg *DefaultESSecurityClient) FetchRoles() (*security.Roles, error) {
 	log.Debug("Fetching Security roles...")
 	resp, err := sg.esClient.Get("/.security/security/roles")
 	if err != nil {
@@ -62,7 +77,7 @@ func (sg *ESSecurityClient) FetchRoles() (*security.Roles, error) {
 	return roles, nil
 }
 
-func (sg *ESSecurityClient) FetchRolesMapping() (*security.RolesMapping, error) {
+func (sg *DefaultESSecurityClient) FetchRolesMapping() (*security.RolesMapping, error) {
 	log.Debug("Fetching Security rolesmapping...")
 	resp, err := sg.esClient.Get("/.security/security/rolesmapping")
 	if err != nil {
@@ -92,7 +107,7 @@ func encodeACLDocument(doc security.Serializable) (string, error) {
 	return security.ToJson(updated)
 }
 
-func (sg *ESSecurityClient) FlushACL(doc security.Serializable) error {
+func (sg *DefaultESSecurityClient) FlushACL(doc security.Serializable) error {
 	log.Tracef("Flushing Security %s: %+v", doc.Type(), doc)
 	sDoc, err := encodeACLDocument(doc)
 	if err != nil {
