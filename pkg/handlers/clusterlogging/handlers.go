@@ -67,9 +67,7 @@ func (ext *extension) Process(req *http.Request, context *extensions.RequestCont
 	}
 	// modify kibana request
 	// seed kibana dashboards
-	if err = ext.documentManager.SyncACL(userInfo); err != nil {
-		return nil, err
-	}
+	ext.documentManager.SyncACL(userInfo)
 
 	return modRequest, nil
 }

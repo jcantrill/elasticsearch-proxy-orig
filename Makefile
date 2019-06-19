@@ -5,15 +5,14 @@ IMAGE_REPOSITORY_NAME ?=github.com/openshift/$(BIN_NAME)
 MAIN_PKG=cmd/proxy/main.go
 TARGET_DIR=$(CURPATH)/_output
 TARGET=$(TARGET_DIR)/bin/$(BIN_NAME)
-BUILD_GOPATH=$(TARGET_DIR):$(TARGET_DIR)/vendor:$(CURPATH)/cmd
+BUILD_GOPATH=$(TARGET_DIR)
 
 #inputs to 'run' which may need to change
 TLS_CERTS_BASEDIR=_output
-CLIENT_SECRET?=SzVEeEQwYmRFcVRpb3VaWVpFUmdKbjN3bnZweWxrR3FRU1RWY01BSWNTdDRPRk9wYkdaMjB4cWN6ODRhMElFUg==
-COOKIE_SECRET?=3bM3IXYGSivKBWW+xE1uQg==
 
 PKGS=$(shell go list ./... | grep -v -E '/vendor/')
-TEST_OPTIONS?=
+TEST_PKGS=$(shell go list ./... | grep -v -E '/vendor/' | grep -v -E 'cmd')
+TEST_OPTIONS?=-vet=off
 
 all: build
 
@@ -24,22 +23,23 @@ fmt:
 
 build: fmt
 	@mkdir -p $(TARGET_DIR)/src/$(IMAGE_REPOSITORY_NAME)
-	@cp -ru $(CURPATH)/pkg $(TARGET_DIR)/src/$(IMAGE_REPOSITORY_NAME)
+	@cp -ru $(CURPATH)/{pkg,test} $(TARGET_DIR)/src/$(IMAGE_REPOSITORY_NAME)
 	@cp -ru $(CURPATH)/vendor/* $(TARGET_DIR)/src
 	@GOPATH=$(BUILD_GOPATH) go build  $(LDFLAGS) -o $(TARGET) $(MAIN_PKG)
 .PHONY: build
 
-images:
+image:
 	imagebuilder -f Dockerfile -t $(IMAGE_REPOSITORY_NAME)/$(BIN_NAME) .
 .PHONY: images
 
 clean:
+	go clean -cache
 	rm -rf $(TARGET_DIR)
 	rm -rf $(TLS_CERTS_BASEDIR)
 .PHONY: clean
 
-test:
-	@go test $(TEST_OPTIONS) $(PKGS)
+test: build
+	cd $(TARGET_DIR) && GOPATH=$(BUILD_GOPATH) go test $(TEST_OPTIONS) $(TEST_PKGS)
 .PHONY: test
 
 prep-for-run:
