@@ -29,23 +29,37 @@ func NewDocumentManager(config cl.ExtConfig) (*DocumentManager, error) {
 }
 
 //SyncACL to include the given UserInfo
-func (dm *DocumentManager) SyncACL(userInfo *cl.UserInfo) error {
+func (dm *DocumentManager) SyncACL(userInfo *cl.UserInfo) {
 	log.Debugf("SyncACL for %+v", userInfo)
 	if dm.isInfraGroupMember(userInfo) {
 		log.Debugf("Skipping sync of ACLs for infragroup member %s. Permissions are assumed to be static", userInfo.Username)
-		return nil
+		return
 	}
+
+	//TODO: there must be a better way to do this.  Is Channels
+	//from small call location above better?
+	for delay := range []int{1, 1, 2, 3, 5, 8} {
+		if !dm.trySyncACL(userInfo) {
+			log.Debugf("Unable to synce ACLs, sleeping for %q seconds...", delay)
+			time.Sleep(time.Duration(delay) * time.Second)
+		}
+	}
+}
+
+func (dm *DocumentManager) trySyncACL(userInfo *cl.UserInfo) bool {
+	log.Debugf("trySyncACL for %+v", userInfo)
 	docs, err := dm.loadACL()
 	if err != nil {
-		return err
+		log.Warnf("Unable to load ACL docs: %v", err)
+		return false
 	}
 	docs.ExpirePermissions()
 	docs.AddUser(userInfo, nextExpireTime(dm.ExtConfig.PermissionExpirationMillis))
 	if err = dm.writeACL(docs); err != nil {
-		return err
+		log.Debugf("Error writing ACL doc: %v", err)
+		return false
 	}
-	// dm.reloadConfig()
-	return nil
+	return true
 }
 
 func (dm *DocumentManager) writeACL(docs *security.ACLDocuments) error {

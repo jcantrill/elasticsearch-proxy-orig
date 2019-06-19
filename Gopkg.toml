@@ -24,6 +24,13 @@
 #   go-tests = true
 #   unused-packages = true
 
+required = [
+  "golang.org/x/net/html/charset",
+  "golang.org/x/text/encoding/htmlindex",
+  "golang.org/x/text/language",
+  "github.com/onsi/gomega/matchers",
+  "github.com/onsi/gomega/matchers/support/goraph/bipartitegraph"
+]
 
 [[constraint]]
   name = "github.com/BurntSushi/toml"
@@ -45,7 +52,7 @@
   name = "github.com/onsi/ginkgo"
   version = "1.8.0"
 
-[[constraint]]
+[[override]]
   name = "github.com/onsi/gomega"
   version = "1.5.0"
 
@@ -57,9 +64,13 @@
   branch = "master"
   name = "github.com/yhat/wsutil"
 
-[[constraint]]
+[[override]]
   branch = "master"
   name = "golang.org/x/net"
+
+[[override]]
+  branch = "master"
+  name = "golang.org/x/text"
 
 [[constraint]]
   name = "gopkg.in/yaml.v2"
