@@ -9,9 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
-	"github.com/mreiferson/go-options"
-	configOptions "github.com/openshift/elasticsearch-proxy/pkg/config"
+	"github.com/openshift/elasticsearch-proxy/pkg/config"
 	ext "github.com/openshift/elasticsearch-proxy/pkg/handlers"
 	auth "github.com/openshift/elasticsearch-proxy/pkg/handlers/authentication"
 	cl "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging"
@@ -31,42 +29,26 @@ func main() {
 
 	upstreams := util.StringArray{}
 	openshiftCAs := util.StringArray{}
-	clientCA := ""
 	upstreamCAs := util.StringArray{}
 
-	config := flagSet.String("config", "", "path to config file")
-
 	flagSet.String("https-address", ":8443", "<addr>:<port> to listen on for HTTPS clients")
-	flagSet.Duration("upstream-flush", time.Duration(5)*time.Millisecond, "force flush upstream responses after this duration(useful for streaming responses). 0 to never force flush. Defaults to 5ms")
+
 	flagSet.String("tls-cert", "", "path to certificate file")
 	flagSet.String("tls-key", "", "path to private key file")
-	flagSet.StringVar(&clientCA, "tls-client-ca", clientCA, "path to a CA file for admitting client certificates.")
-	flagSet.Var(&upstreams, "upstream", "the http url(s) of the upstream endpoint")
+	flagSet.String("tls-client-ca", "", "path to a CA file for admitting client certificates.")
+
 	flagSet.Bool("ssl-insecure-skip-verify", false, "skip validation of certificates presented when using HTTPS")
-	flagSet.String("debug-address", "", "[http://]<addr>:<port> or unix://<path> to listen on for debug and requests")
-
 	flagSet.Bool("proxy-websockets", true, "enables WebSocket proxying")
-
 	flagSet.Var(&openshiftCAs, "openshift-ca", "paths to CA roots for the OpenShift API (may be given multiple times, defaults to /var/run/secrets/kubernetes.io/serviceaccount/ca.crt).")
-
 	flagSet.Bool("request-logging", false, "Log requests to stdout")
+
+	flagSet.Var(&upstreams, "upstream", "the http url(s) of the upstream endpoint")
+	flagSet.Duration("upstream-flush", time.Duration(5)*time.Millisecond, "force flush upstream responses after this duration(useful for streaming responses). 0 to never force flush. Defaults to 5ms")
 	flagSet.Var(&upstreamCAs, "upstream-ca", "paths to CA roots for the Upstream (target) Server (may be given multiple times, defaults to system trust store).")
 
 	flagSet.Parse(os.Args[1:])
 
-	opts := configOptions.NewOptions()
-	opts.TLSClientCAFile = clientCA
-
-	cfg := make(configOptions.EnvOptions)
-	if *config != "" {
-		_, err := toml.DecodeFile(*config, &cfg)
-		if err != nil {
-			log.Fatalf("ERROR: failed to load config file %s - %s", *config, err)
-		}
-	}
-	cfg.LoadEnvForStruct(opts)
-	options.Resolve(opts, flagSet, cfg)
-
+	opts := config.Init(flagSet)
 	err := opts.Validate()
 	if err != nil {
 		log.Printf("%s", err)
@@ -75,15 +57,6 @@ func main() {
 
 	proxyServer := proxy.NewProxyServer(opts)
 
-	if opts.DebugAddress != "" {
-		mux := http.NewServeMux()
-		mux.Handle("/debug/pprof/", http.DefaultServeMux)
-		go func() {
-			log.Fatalf("FATAL: unable to serve debug %s: %v", opts.DebugAddress, http.ListenAndServe(opts.DebugAddress, mux))
-		}()
-	}
-
-	log.Printf("Registering Extensions....")
 	extOptions := &ext.Options{
 		OpenshiftCAs:          openshiftCAs,
 		TLSCertFile:           opts.TLSCertFile,
@@ -93,6 +66,7 @@ func main() {
 	}
 
 	extOptions.ServiceAccountToken = readServiceAccountToken()
+	log.Printf("Registering Handlers....")
 	proxyServer.RegisterRequestHandlers(auth.NewHandlers(extOptions))
 	proxyServer.RegisterRequestHandlers(cl.NewHandlers(extOptions))
 

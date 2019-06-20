@@ -18,17 +18,15 @@ type Server struct {
 }
 
 func (s *Server) ListenAndServe() {
-	if s.Opts.HttpsAddress == "" {
+	if s.Opts.HTTPSAddress == "" {
 		log.Fatalf("FATAL: must specify https-addres")
 	}
-	if s.Opts.HttpsAddress != "" {
-		go s.ServeHTTPS()
-	}
+	go s.ServeHTTPS()
 	select {}
 }
 
 func (s *Server) ServeHTTPS() {
-	addr := s.Opts.HttpsAddress
+	addr := s.Opts.HTTPSAddress
 	config := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 		MaxVersion: tls.VersionTLS12,
