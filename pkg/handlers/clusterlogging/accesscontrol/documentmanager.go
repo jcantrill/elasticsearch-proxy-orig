@@ -3,8 +3,8 @@ package accesscontrol
 import (
 	"time"
 
+	"github.com/openshift/elasticsearch-proxy/pkg/apis/security"
 	"github.com/openshift/elasticsearch-proxy/pkg/clients"
-	"github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/security"
 	cl "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/types"
 	log "github.com/sirupsen/logrus"
 )
@@ -55,19 +55,16 @@ func (dm *DocumentManager) trySyncACL(userInfo *cl.UserInfo) bool {
 	}
 	docs.ExpirePermissions()
 	docs.AddUser(userInfo, nextExpireTime(dm.ExtConfig.PermissionExpirationMillis))
-	if err = dm.writeACL(docs); err != nil {
+	if err = dm.writeACL(*docs); err != nil {
 		log.Debugf("Error writing ACL doc: %v", err)
 		return false
 	}
 	return true
 }
 
-func (dm *DocumentManager) writeACL(docs *security.ACLDocuments) error {
+func (dm *DocumentManager) writeACL(docs security.ACLDocuments) error {
 	log.Debug("Writing ACLs...")
-	if err := dm.securityClient.FlushACL(&docs.Roles); err != nil {
-		return err
-	}
-	if err := dm.securityClient.FlushACL(&docs.RolesMapping); err != nil {
+	if err := dm.securityClient.FlushACL(docs); err != nil {
 		return err
 	}
 	return nil

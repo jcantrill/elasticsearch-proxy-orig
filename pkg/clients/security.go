@@ -5,14 +5,14 @@ import (
 	"fmt"
 
 	"github.com/bitly/go-simplejson"
+	"github.com/openshift/elasticsearch-proxy/pkg/apis/security"
 	ext "github.com/openshift/elasticsearch-proxy/pkg/handlers"
-	"github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/security"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	securityIndex   = ".security"
-	securityDocType = "security"
+	securityIndex = ".security"
+	DocType       = "security"
 )
 
 //ESSecurityClient for reading and writing security documents
@@ -26,7 +26,7 @@ type SecurityClient interface {
 	FetchRoles() (*security.Roles, error)
 
 	//FlushACL documents from the manager to Elasticsearch
-	FlushACL(doc security.Serializable) error
+	FlushACL(doc security.ACLDocuments) error
 }
 
 //DefaultESSecurityClient implementation
@@ -46,13 +46,13 @@ func NewESSecurityClient(opts ext.Options) (SecurityClient, error) {
 	return &DefaultESSecurityClient{esClient}, nil
 }
 
-func decodeACLDocument(resp, docType string) (string, error) {
+func decodeACLDocument(resp string, docType security.DocType) (string, error) {
 	json, err := simplejson.NewJson([]byte(resp))
 	if err != nil {
 		return "", err
 	}
 	var encoded string
-	encoded, err = json.GetPath("_source", docType).String()
+	encoded, err = json.GetPath("_source", string(docType)).String()
 	if err != nil {
 		return "", err
 	}
@@ -64,9 +64,9 @@ func decodeACLDocument(resp, docType string) (string, error) {
 	return string(unencoded), nil
 }
 
-func decodeACLDocumentFrom(item MGetResponseItem, docType string) (string, error) {
+func decodeACLDocumentFrom(item MGetResponseItem, docType security.DocType) (string, error) {
 	log.Tracef("Decoding docType %q from %v", docType, item)
-	source := item.Source[docType]
+	source := item.Source[string(docType)]
 	log.Tracef("ACLDocument _source to decode: %v", source)
 	unencoded, err := base64.StdEncoding.DecodeString(source.(string))
 	if err != nil {
@@ -135,12 +135,12 @@ func (sg *DefaultESSecurityClient) FetchACLs() (*security.ACLDocuments, error) {
 	items := MGetRequest{
 		Docs: []MGetItem{
 			MGetItem{
-				Type: securityDocType,
-				Id:   security.DocTypeRoles,
+				Type: DocType,
+				Id:   string(security.DocTypeRoles),
 			},
 			MGetItem{
-				Type: securityDocType,
-				Id:   security.DocTypeRolesmapping,
+				Type: DocType,
+				Id:   string(security.DocTypeRolesmapping),
 			},
 		},
 	}
@@ -151,18 +151,18 @@ func (sg *DefaultESSecurityClient) FetchACLs() (*security.ACLDocuments, error) {
 	docs := &security.ACLDocuments{}
 	for _, item := range resp.Docs {
 		switch item.Id {
-		case security.DocTypeRoles:
+		case string(security.DocTypeRoles):
 			doc, err := decodeRolesACLDocumentFrom(item)
 			if err != nil {
 				return nil, err
 			}
-			docs.Roles = *doc
-		case security.DocTypeRolesmapping:
+			docs.Set(doc)
+		case string(security.DocTypeRolesmapping):
 			doc, err := decodeRolesmappingACLDocumentFrom(item)
 			if err != nil {
 				return nil, err
 			}
-			docs.RolesMapping = *doc
+			docs.Set(doc)
 		}
 	}
 	return docs, nil
@@ -186,28 +186,31 @@ func (sg *DefaultESSecurityClient) FetchRolesMapping() (*security.RolesMapping, 
 	return decodeRolesmappingACLDocument(resp)
 }
 
-func encodeACLDocument(doc security.Serializable) (string, error) {
+func encodeACLDocument(doc security.ACLDocument) (string, error) {
 	log.Tracef("Encoding %s ACL Document...", doc.Type())
 	json, err := doc.ToJson()
 	if err != nil {
 		return "", err
 	}
 	log.Tracef("Trying to encode: %s", json)
-	updated := map[string]interface{}{doc.Type(): []byte(json)}
+	updated := map[security.DocType]interface{}{doc.Type(): []byte(json)}
 	return security.ToJson(updated)
 }
 
-func (sg *DefaultESSecurityClient) FlushACL(doc security.Serializable) error {
-	log.Tracef("Flushing Security %s: %+v", doc.Type(), doc)
-	sDoc, err := encodeACLDocument(doc)
-	if err != nil {
-		return err
-	}
-	if _, err = sg.esClient.Put(fmt.Sprintf("/.security/security/%s", doc.Type()), sDoc); err != nil {
-		return err
+func (sg *DefaultESSecurityClient) FlushACL(docs security.ACLDocuments) error {
+	for _, doc := range docs.Iterate() {
+		log.Tracef("Flushing Security %s: %+v", doc.Type(), doc)
+		sDoc, err := encodeACLDocument(doc)
+		if err != nil {
+			return err
+		}
+		if _, err = sg.esClient.Put(fmt.Sprintf("/.security/security/%s", doc.Type()), sDoc); err != nil {
+			return err
+		}
 	}
 	log.Trace("Calling config reload...")
 	var resp string
+	var err error
 	if resp, err = sg.esClient.Delete("/_opendistro/_security/api/cache"); err != nil {
 		return err
 	}
