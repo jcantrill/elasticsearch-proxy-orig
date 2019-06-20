@@ -4,7 +4,7 @@ BIN_NAME=elasticsearch-proxy
 IMAGE_REPOSITORY_NAME ?=github.com/openshift/$(BIN_NAME)
 MAIN_PKG=cmd/proxy/main.go
 TARGET_DIR=$(CURPATH)/_output
-TARGET=$(TARGET_DIR)/bin/$(BIN_NAME)
+TARGET=$(CURPATH)/bin/$(BIN_NAME)
 BUILD_GOPATH=$(TARGET_DIR)
 
 #inputs to 'run' which may need to change
@@ -12,7 +12,7 @@ TLS_CERTS_BASEDIR=_output
 
 PKGS=$(shell go list ./... | grep -v -E '/vendor/')
 TEST_PKGS=$(shell go list ./... | grep -v -E '/vendor/' | grep -v -E 'cmd')
-TEST_OPTIONS?=-vet=off
+TEST_OPTIONS?=
 
 all: build
 
@@ -22,10 +22,7 @@ fmt:
 .PHONY: fmt
 
 build: fmt
-	@mkdir -p $(TARGET_DIR)/src/$(IMAGE_REPOSITORY_NAME)
-	@cp -ru $(CURPATH)/{pkg,test} $(TARGET_DIR)/src/$(IMAGE_REPOSITORY_NAME)
-	@cp -ru $(CURPATH)/vendor/* $(TARGET_DIR)/src
-	@GOPATH=$(BUILD_GOPATH) go build  $(LDFLAGS) -o $(TARGET) $(MAIN_PKG)
+	@go build  $(LDFLAGS) -o $(TARGET) $(MAIN_PKG)
 .PHONY: build
 
 image:
@@ -33,13 +30,16 @@ image:
 .PHONY: images
 
 clean:
-	go clean -cache
-	rm -rf $(TARGET_DIR)
+	rm -f $(TARGET)
+	go clean
+	rm -rf $(TARGET)
 	rm -rf $(TLS_CERTS_BASEDIR)
 .PHONY: clean
 
-test: build
-	cd $(TARGET_DIR) && GOPATH=$(BUILD_GOPATH) go test $(TEST_OPTIONS) $(TEST_PKGS)
+test:
+	@for pkg in $(TEST_PKGS) ; do \
+		go test $(TEST_OPTIONS) $$pkg  ; \
+	done
 .PHONY: test
 
 prep-for-run:

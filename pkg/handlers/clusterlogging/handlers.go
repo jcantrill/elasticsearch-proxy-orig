@@ -9,15 +9,16 @@ import (
 	ac "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/accesscontrol"
 	config "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/types"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
+
+type setString map[string]interface{}
 
 type extension struct {
 	*extensions.Options
 
 	//whitelisted is the list of user and or serviceacccounts for which
 	//all proxy logic is skipped (e.g. fluent)
-	whitelisted     sets.String
+	whitelisted     setString
 	documentManager *ac.DocumentManager
 	osClient        clients.OpenShiftClient
 	config          config.ExtConfig
@@ -46,7 +47,7 @@ func NewHandlers(opts *extensions.Options) []extensions.RequestHandler {
 	return []extensions.RequestHandler{
 		&extension{
 			opts,
-			sets.NewString(),
+			setString{},
 			dm,
 			client,
 			config,
@@ -73,7 +74,10 @@ func (ext *extension) Process(req *http.Request, context *extensions.RequestCont
 }
 
 func (ext *extension) isWhiteListed(name string) bool {
-	return ext.whitelisted.Has(name)
+	if _, ok := ext.whitelisted[name]; ok {
+		return true
+	}
+	return false
 }
 
 func (ext *extension) hasInfraRole(context *extensions.RequestContext) bool {
