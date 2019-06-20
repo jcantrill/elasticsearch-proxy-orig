@@ -2,43 +2,61 @@ package config
 
 import (
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
+	"github.com/mreiferson/go-options"
 	log "github.com/sirupsen/logrus"
 )
 
 // Configuration Options that can be set by Command Line Flag, or Config File
 type Options struct {
-	ProxyWebSockets bool          `flag:"proxy-websockets" cfg:"proxy_websockets"`
-	HttpsAddress    string        `flag:"https-address" cfg:"https_address"`
-	DebugAddress    string        `flag:"debug-address" cfg:"debug_address"`
-	UpstreamFlush   time.Duration `flag:"upstream-flush" cfg:"upstream_flush"`
-	TLSCertFile     string        `flag:"tls-cert" cfg:"tls_cert_file"`
-	TLSKeyFile      string        `flag:"tls-key" cfg:"tls_key_file"`
-	TLSClientCAFile string        `flag:"tls-client-ca" cfg:"tls_client_ca"`
-	OpenShiftCAs    []string      `flag:"openshift-ca" cfg:"openshift_ca"`
+	ProxyWebSockets bool     `flag:"proxy-websockets"`
+	HTTPSAddress    string   `flag:"https-address"`
+	TLSCertFile     string   `flag:"tls-cert"`
+	TLSKeyFile      string   `flag:"tls-key"`
+	TLSClientCAFile string   `flag:"tls-client-ca"`
+	OpenShiftCAs    []string `flag:"openshift-ca"`
 
-	Upstreams             []string `flag:"upstream" cfg:"upstreams"`
-	SSLInsecureSkipVerify bool     `flag:"ssl-insecure-skip-verify" cfg:"ssl_insecure_skip_verify"`
+	UpstreamFlush time.Duration `flag:"upstream-flush"`
+	Upstreams     []string      `flag:"upstream"`
+	UpstreamCAs   []string      `flag:"upstream-ca"`
 
-	RequestLogging bool `flag:"request-logging" cfg:"request_logging"`
-
-	UpstreamCAs []string `flag:"upstream-ca" cfg:"upstream_ca"`
-	ProxyURLs   []*url.URL
+	SSLInsecureSkipVerify bool `flag:"ssl-insecure-skip-verify"`
+	RequestLogging        bool `flag:"request-logging"`
+	ProxyURLs             []*url.URL
 }
 
-func NewOptions() *Options {
+//Init the configuration options based on the values passed via the CLI
+func Init(flagSet *flag.FlagSet) *Options {
+	opts := newOptions()
+
+	options.Resolve(opts, flagSet, envConfig)
+
+	if opts.SSLInsecureSkipVerify {
+		insecureTransport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		http.DefaultClient = &http.Client{Transport: insecureTransport}
+	}
+
+	return opts
+}
+
+func newOptions() *Options {
 	return &Options{
 		ProxyWebSockets: true,
-		HttpsAddress:    ":443",
+		HTTPSAddress:    ":443",
 		UpstreamFlush:   time.Duration(5) * time.Millisecond,
-		RequestLogging:  true,
+		RequestLogging:  false,
 	}
 }
 
+//Validate the configuration options and return errors
 func (o *Options) Validate() error {
 	log.Tracef("Validating options: %v", o)
 	msgs := make([]string, 0)
@@ -69,11 +87,9 @@ func (o *Options) Validate() error {
 		msgs = append(msgs, "tls-client-ca requires tls-key-file or tls-cert-file to be set to listen on tls")
 	}
 
-	if o.SSLInsecureSkipVerify {
-		insecureTransport := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		http.DefaultClient = &http.Client{Transport: insecureTransport}
+	if len(msgs) != 0 {
+		return fmt.Errorf("Invalid configuration:\n  %s",
+			strings.Join(msgs, "\n  "))
 	}
 
 	return nil
