@@ -22,7 +22,7 @@ fmt:
 .PHONY: fmt
 
 build: fmt
-	@go build  $(LDFLAGS) -o $(TARGET) $(MAIN_PKG)
+	go build  $(LDFLAGS) -o $(TARGET) $(MAIN_PKG)
 .PHONY: build
 
 image:
@@ -30,7 +30,6 @@ image:
 .PHONY: images
 
 clean:
-	rm -f $(TARGET)
 	go clean
 	rm -rf $(TARGET)
 	rm -rf $(TLS_CERTS_BASEDIR)
