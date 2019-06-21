@@ -1,4 +1,4 @@
-package bearertoken
+package authorization
 
 import (
 	"net/http"
@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	clients "github.com/openshift/elasticsearch-proxy/pkg/clients"
+	"github.com/openshift/elasticsearch-proxy/pkg/config"
 	extensions "github.com/openshift/elasticsearch-proxy/pkg/handlers"
 )
 
@@ -17,50 +18,38 @@ const (
 	serviceAccountTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 )
 
-type backendRoleConfig struct {
-	Namespace        string
-	Verb             string
-	Resource         string
-	ResourceAPIGroup string
-}
-
-type bearerTokenExtension struct {
-	options            *extensions.Options
-	osClient           clients.OpenShiftClient
-	backendRoleConfigs map[string]backendRoleConfig
+type authorizationHandler struct {
+	config   *config.Options
+	osClient clients.OpenShiftClient
 }
 
 //NewHandlers is the initializer for this extension
-func NewHandlers(opts *extensions.Options) (_ []extensions.RequestHandler) {
+func NewHandlers(opts *config.Options) (_ []extensions.RequestHandler) {
 	osClient, err := clients.NewOpenShiftClient(*opts)
 	if err != nil {
 		log.Fatalf("Error constructing OpenShiftClient %v", err)
 	}
 	return []extensions.RequestHandler{
-		&bearerTokenExtension{
+		&authorizationHandler{
 			opts,
 			osClient,
-			map[string]backendRoleConfig{
-				"sg_role_admin": backendRoleConfig{Namespace: "default", Verb: "view", Resource: "pods/metrics"},
-				"prometheus":    backendRoleConfig{Verb: "get", Resource: "/metrics"},
-				"jaeger":        backendRoleConfig{Verb: "get", Resource: "/jaeger", ResourceAPIGroup: "elasticsearch.jaegertracing.io"},
-			},
+			// defaultbackendRoleConfig,
 		},
 	}
 }
-func (ext *bearerTokenExtension) Name() string {
-	return "Authorization"
+func (auth *authorizationHandler) Name() string {
+	return "authorization"
 }
 
-func (ext *bearerTokenExtension) Process(req *http.Request, context *extensions.RequestContext) (*http.Request, error) {
-	log.Tracef("Processing request in handler %q", ext.Name())
+func (auth *authorizationHandler) Process(req *http.Request, context *extensions.RequestContext) (*http.Request, error) {
+	log.Tracef("Processing request in handler %q", auth.Name())
 	context.Token = getBearerTokenFrom(req)
 	if context.Token == "" {
-		log.Debugf("Skipping %s as there is no bearer token present", ext.Name())
+		log.Debugf("Skipping %s as there is no bearer token present", auth.Name())
 		return req, nil
 	}
 	sanitizeHeaders(req)
-	json, err := ext.osClient.TokenReview(context.Token)
+	json, err := auth.osClient.TokenReview(context.Token)
 	if err != nil {
 		log.Errorf("Error fetching user info %v", err)
 		return req, err
@@ -70,14 +59,14 @@ func (ext *bearerTokenExtension) Process(req *http.Request, context *extensions.
 	if context.UserName != "" {
 		req.Header.Set(headerForwardedUser, context.UserName)
 	}
-	ext.fetchRoles(req, context)
+	auth.fetchRoles(req, context)
 	return req, nil
 }
 
-func (ext *bearerTokenExtension) fetchRoles(req *http.Request, context *extensions.RequestContext) {
+func (auth *authorizationHandler) fetchRoles(req *http.Request, context *extensions.RequestContext) {
 	log.Debug("Determining roles...")
-	for name, sar := range ext.backendRoleConfigs {
-		if allowed, err := ext.osClient.SubjectAccessReview(context.UserName, sar.Namespace, sar.Verb, sar.Resource, sar.ResourceAPIGroup); err == nil {
+	for name, sar := range auth.config.AuthBackEndRoles {
+		if allowed, err := auth.osClient.SubjectAccessReview(context.UserName, sar.Namespace, sar.Verb, sar.Resource, sar.ResourceAPIGroup); err == nil {
 			log.Debugf("%q for %q SAR: %v", context.UserName, name, allowed)
 			if allowed {
 				context.Roles = append(context.Roles, name)

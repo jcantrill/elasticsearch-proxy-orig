@@ -6,7 +6,7 @@ import (
 	"github.com/bmizerany/assert"
 )
 
-func TestStringArray(t *testing.T) {
+func TestStringArrayString(t *testing.T) {
 	sa := StringArray{}
 	assert.Equal(t, "", sa.String())
 	err := sa.Set("foo")
@@ -19,4 +19,17 @@ func TestStringArray(t *testing.T) {
 		t.Errorf("unexpected error %v", err)
 	}
 	assert.Equal(t, "foo,bar", sa.String())
+}
+
+func TestStringArrayGet(t *testing.T) {
+	sa := StringArray{}
+	value := sa.Get()
+	assert.Equal(t, []string{}, value)
+
+	err := sa.Set("foo")
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	value = sa.Get()
+	assert.Equal(t, []string{"foo"}, value)
 }

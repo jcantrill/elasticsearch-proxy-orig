@@ -1,52 +1,113 @@
-package config
+package config_test
 
 import (
 	"net/url"
 	"strings"
-	"testing"
 
-	"github.com/bmizerany/assert"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
+	"github.com/openshift/elasticsearch-proxy/pkg/config"
+	cltypes "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/types"
 )
 
-func testOptions() *Options {
-	o := newOptions()
-	o.Upstreams = []string{"http://127.0.0.1:8080"}
-	return o
-}
-
-func errorMsg(msgs []string) string {
+func errorMessage(msgs ...string) string {
 	result := make([]string, 0)
 	result = append(result, "Invalid configuration:")
 	result = append(result, msgs...)
 	return strings.Join(result, "\n  ")
 }
 
-func TestNewOptions(t *testing.T) {
-	o := newOptions()
-	err := o.Validate()
-	assert.NotEqual(t, nil, err)
+var _ = Describe("Initializing Config options", func() {
 
-	expected := errorMsg([]string{
-		"missing setting: upstream",
+	Describe("when defining tls-client-ca without key or certs", func() {
+		It("should fail", func() {
+			args := []string{"--tls-client-ca=/foo/bar"}
+			options, err := config.Init(args)
+			Expect(options).Should(BeNil())
+
+			Expect(err.Error()).Should(
+				Equal(errorMessage("tls-client-ca requires tls-key-file or tls-cert-file to be set to listen on tls")))
+		})
 	})
-	assert.Equal(t, expected, err.Error())
-}
 
-func TestInitializedOptions(t *testing.T) {
-	o := testOptions()
-	assert.Equal(t, nil, o.Validate())
-}
+	Describe("when defining tls-client-ca and key without certs", func() {
+		It("should fail", func() {
+			args := []string{"--tls-client-ca=/foo/bar", "--tls-key=/foo/bar"}
+			options, err := config.Init(args)
+			Expect(options).Should(BeNil())
+			Expect(err.Error()).Should(
+				Equal(errorMessage("tls-client-ca requires tls-key-file or tls-cert-file to be set to listen on tls")))
+		})
+	})
 
-func TestProxyURLs(t *testing.T) {
-	o := testOptions()
-	t.Logf("%#v / %#v", o.Upstreams, o.ProxyURLs)
-	o.Upstreams = append(o.Upstreams, "http://127.0.0.1:8081")
-	assert.Equal(t, nil, o.Validate())
-	t.Logf("%#v / %#v", o.Upstreams, o.ProxyURLs)
-	expected := []*url.URL{
-		&url.URL{Scheme: "http", Host: "127.0.0.1:8080", Path: "/"},
-		// note the '/' was added
-		&url.URL{Scheme: "http", Host: "127.0.0.1:8081", Path: "/"},
-	}
-	assert.Equal(t, expected, o.ProxyURLs)
-}
+	Describe("when defining no options", func() {
+		It("should not fail", func() {
+			args := []string{}
+			options, err := config.Init(args)
+			Expect(err).Should(BeNil())
+			Expect(options).Should(Not(BeNil()))
+			Expect(&url.URL{Scheme: "https", Host: "127.0.0.1:9200", Path: "/"}).Should(Equal(options.ElasticsearchURL))
+		})
+	})
+
+	Describe("when defining auth backend role", func() {
+		Describe("without a valid backendname", func() {
+
+			It("should fail", func() {
+				args := []string{"--auth-backend-role={'verb':'get'}"}
+				options, err := config.Init(args)
+				Expect(options).Should(BeNil())
+				Expect(err.Error()).Should(
+					Equal(errorMessage("auth-backend-role \"{'verb':'get'}\" should be name=SAR")))
+			})
+		})
+		Describe("that is the same as one that exists", func() {
+
+			It("should fail", func() {
+				args := []string{"--auth-backend-role=foo={\"verb\":\"get\"}", "--auth-backend-role=foo={\"verb\":\"get\"}"}
+				options, err := config.Init(args)
+				Expect(options).Should(BeNil())
+				Expect(err.Error()).Should(
+					Equal(errorMessage("Backend role with that name \"foo={\\\"verb\\\":\\\"get\\\"}\" already exists")))
+			})
+		})
+		Describe("with unique backend roles", func() {
+
+			It("should succeed", func() {
+				args := []string{"--auth-backend-role=foo={\"verb\":\"get\"}", "--auth-backend-role=bar={\"verb\":\"get\"}"}
+				options, err := config.Init(args)
+				Expect(err).Should(BeNil())
+				Expect(options).Should(Not(BeNil()))
+				exp := map[string]config.BackendRoleConfig{
+					"foo": config.BackendRoleConfig{Verb: "get"},
+					"bar": config.BackendRoleConfig{Verb: "get"},
+				}
+				Expect(options.AuthBackEndRoles).Should(Equal(exp))
+			})
+		})
+	})
+
+	Describe("when defining kibana index mode", func() {
+		Describe("with an unsupported value", func() {
+			It("should fail", func() {
+				args := []string{"--cl-kibana-index-mode=foo"}
+				options, err := config.Init(args)
+				Expect(options).Should(BeNil())
+				Expect(err.Error()).Should(
+					Equal(errorMessage("Unsupported kibanaIndexMode \"foo\"")))
+			})
+		})
+		Describe("with a supported value", func() {
+			It("should succeed", func() {
+				args := []string{"--cl-kibana-index-mode=sharedOps"}
+				options, err := config.Init(args)
+				Expect(err).Should(BeNil())
+				Expect(options).Should(Not(BeNil()))
+				Expect(options.KibanaIndexMode).Should(
+					Equal(cltypes.KibanaIndexModeSharedOps))
+			})
+		})
+	})
+
+})

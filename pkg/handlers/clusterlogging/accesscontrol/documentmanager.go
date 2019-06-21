@@ -5,20 +5,21 @@ import (
 
 	"github.com/openshift/elasticsearch-proxy/pkg/apis/security"
 	"github.com/openshift/elasticsearch-proxy/pkg/clients"
+	"github.com/openshift/elasticsearch-proxy/pkg/config"
 	cl "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/types"
 	log "github.com/sirupsen/logrus"
 )
 
 //DocumentManager understands how to load and sync ACL documents
 type DocumentManager struct {
-	cl.ExtConfig
+	config.Options
 	securityClient clients.SecurityClient
 }
 
 //NewDocumentManager creates an instance or returns error
-func NewDocumentManager(config cl.ExtConfig) (*DocumentManager, error) {
+func NewDocumentManager(config config.Options) (*DocumentManager, error) {
 	log.Tracef("Instantiating a new document manager using: %+v", config)
-	sgClient, err := clients.NewESSecurityClient(config.Options)
+	sgClient, err := clients.NewESSecurityClient(config)
 	if err != nil {
 		return nil, err
 	}

@@ -6,7 +6,7 @@ import (
 
 	"github.com/bitly/go-simplejson"
 	"github.com/openshift/elasticsearch-proxy/pkg/apis/security"
-	ext "github.com/openshift/elasticsearch-proxy/pkg/handlers"
+	"github.com/openshift/elasticsearch-proxy/pkg/config"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,11 +35,11 @@ type DefaultESSecurityClient struct {
 }
 
 //NewESSecurityClient initializes the client
-func NewESSecurityClient(opts ext.Options) (SecurityClient, error) {
-	if opts.UpstreamURL == nil {
+func NewESSecurityClient(opts config.Options) (SecurityClient, error) {
+	if opts.ElasticsearchURL == nil {
 		return nil, fmt.Errorf("The UpstreamURL proxy URL is nil")
 	}
-	esClient, err := NewElasticsearchClient(opts.SSLInsecureSkipVerify, opts.UpstreamURL.String(), opts.TLSCertFile, opts.TLSKeyFile, opts.OpenshiftCAs)
+	esClient, err := NewElasticsearchClient(opts.SSLInsecureSkipVerify, opts.ElasticsearchURL.String(), opts.TLSCertFile, opts.TLSKeyFile, opts.OpenShiftCAs)
 	if err != nil {
 		return nil, err
 	}
