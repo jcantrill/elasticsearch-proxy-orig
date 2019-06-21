@@ -2,11 +2,12 @@ package extensions
 
 import (
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
 	"log"
+
+	"github.com/openshift/elasticsearch-proxy/pkg/config"
 )
 
 type RequestContext struct {
@@ -17,12 +18,7 @@ type RequestContext struct {
 }
 
 type Options struct {
-	OpenshiftCAs          []string
-	TLSCertFile           string
-	TLSKeyFile            string
-	UpstreamURL           *url.URL
-	SSLInsecureSkipVerify bool
-	ServiceAccountToken   string
+	*config.Options
 }
 
 type StructuredError struct {

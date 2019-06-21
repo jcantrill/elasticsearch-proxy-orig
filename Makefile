@@ -59,9 +59,12 @@ prep-for-run:
 
 run:
 	$(TARGET) --https-address=':60000' \
-        --upstream=https://127.0.0.1:9200 \
         --tls-cert=$(TLS_CERTS_BASEDIR)/admin-cert \
         --tls-key=$(TLS_CERTS_BASEDIR)/admin-key \
         --upstream-ca=$(TLS_CERTS_BASEDIR)/admin-ca \
+		--auth-backend-role=sg_role_admin='{"namespace": "default", "verb": "view", "resource": "pods/metrics"}' \
+		--auth-backend-role=prometheus='{"verb": "get", "resource": "/metrics"}' \
+		--auth-backend-role=jaeger='{"verb": "get", "resource": "/jaeger", "resourceAPIGroup": "elasticsearch.jaegertracing.io"}' \
+		--cl-infra-role-name=sg_role_admin \
 		--ssl-insecure-skip-verify
 .PHONY: run

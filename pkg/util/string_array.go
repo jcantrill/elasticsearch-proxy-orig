@@ -15,5 +15,5 @@ func (a *StringArray) String() string {
 	return strings.Join(*a, ",")
 }
 func (a *StringArray) Get() interface{} {
-	return strings.Join(*a, ",")
+	return []string(*a)
 }

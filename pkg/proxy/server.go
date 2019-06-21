@@ -118,17 +118,16 @@ func NewWebSocketOrRestReverseProxy(u *url.URL, opts *configOptions.Options) (re
 
 func NewProxyServer(opts *configOptions.Options) *ProxyServer {
 	serveMux := http.NewServeMux()
-	for _, u := range opts.ProxyURLs {
-		path := u.Path
-		switch u.Scheme {
-		case "http", "https":
-			log.Printf("mapping path %q => upstream %q", path, u)
-			proxy := NewWebSocketOrRestReverseProxy(u, opts)
-			serveMux.Handle(path, proxy)
+	u := opts.ElasticsearchURL
+	path := u.Path
+	switch u.Scheme {
+	case "http", "https":
+		log.Printf("mapping path %q => upstream %q", path, u)
+		proxy := NewWebSocketOrRestReverseProxy(u, opts)
+		serveMux.Handle(path, proxy)
 
-		default:
-			panic(fmt.Sprintf("unknown upstream protocol %s", u.Scheme))
-		}
+	default:
+		panic(fmt.Sprintf("unknown upstream protocol %s", u.Scheme))
 	}
 
 	return &ProxyServer{

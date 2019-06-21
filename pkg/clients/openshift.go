@@ -12,7 +12,7 @@ import (
 
 	"github.com/bitly/go-simplejson"
 
-	ext "github.com/openshift/elasticsearch-proxy/pkg/handlers"
+	"github.com/openshift/elasticsearch-proxy/pkg/config"
 	"github.com/openshift/elasticsearch-proxy/pkg/util"
 	log "github.com/sirupsen/logrus"
 )
@@ -168,13 +168,13 @@ func getKubeAPIURLWithPath(path string) *neturl.URL {
 }
 
 // NewOpenShiftClient returns a client for connecting to the master.
-func NewOpenShiftClient(opt ext.Options) (OpenShiftClient, error) {
+func NewOpenShiftClient(opt config.Options) (OpenShiftClient, error) {
 	log.Tracef("Creating new OpenShift client with: %+v", opt)
 	//defaults
 	capaths := []string{"/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"}
 	systemRoots := true
-	if len(opt.OpenshiftCAs) != 0 {
-		capaths = opt.OpenshiftCAs
+	if len(opt.OpenShiftCAs) != 0 {
+		capaths = opt.OpenShiftCAs
 		systemRoots = false
 	}
 	pool, err := util.GetCertPool(capaths, systemRoots)

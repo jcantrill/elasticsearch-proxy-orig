@@ -1,20 +1,16 @@
 package main
 
 import (
-	"flag"
 	"io/ioutil"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/openshift/elasticsearch-proxy/pkg/config"
-	ext "github.com/openshift/elasticsearch-proxy/pkg/handlers"
-	auth "github.com/openshift/elasticsearch-proxy/pkg/handlers/authentication"
+	auth "github.com/openshift/elasticsearch-proxy/pkg/handlers/authorization"
 	cl "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging"
 	"github.com/openshift/elasticsearch-proxy/pkg/proxy"
-	"github.com/openshift/elasticsearch-proxy/pkg/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,31 +21,7 @@ const (
 func main() {
 	initLogging()
 
-	flagSet := flag.NewFlagSet("elasticsearch-proxy", flag.ExitOnError)
-
-	upstreams := util.StringArray{}
-	openshiftCAs := util.StringArray{}
-	upstreamCAs := util.StringArray{}
-
-	flagSet.String("https-address", ":8443", "<addr>:<port> to listen on for HTTPS clients")
-
-	flagSet.String("tls-cert", "", "path to certificate file")
-	flagSet.String("tls-key", "", "path to private key file")
-	flagSet.String("tls-client-ca", "", "path to a CA file for admitting client certificates.")
-
-	flagSet.Bool("ssl-insecure-skip-verify", false, "skip validation of certificates presented when using HTTPS")
-	flagSet.Bool("proxy-websockets", true, "enables WebSocket proxying")
-	flagSet.Var(&openshiftCAs, "openshift-ca", "paths to CA roots for the OpenShift API (may be given multiple times, defaults to /var/run/secrets/kubernetes.io/serviceaccount/ca.crt).")
-	flagSet.Bool("request-logging", false, "Log requests to stdout")
-
-	flagSet.Var(&upstreams, "upstream", "the http url(s) of the upstream endpoint")
-	flagSet.Duration("upstream-flush", time.Duration(5)*time.Millisecond, "force flush upstream responses after this duration(useful for streaming responses). 0 to never force flush. Defaults to 5ms")
-	flagSet.Var(&upstreamCAs, "upstream-ca", "paths to CA roots for the Upstream (target) Server (may be given multiple times, defaults to system trust store).")
-
-	flagSet.Parse(os.Args[1:])
-
-	opts := config.Init(flagSet)
-	err := opts.Validate()
+	opts, err := config.Init(os.Args[1:])
 	if err != nil {
 		log.Printf("%s", err)
 		os.Exit(1)
@@ -57,18 +29,10 @@ func main() {
 
 	proxyServer := proxy.NewProxyServer(opts)
 
-	extOptions := &ext.Options{
-		OpenshiftCAs:          openshiftCAs,
-		TLSCertFile:           opts.TLSCertFile,
-		TLSKeyFile:            opts.TLSKeyFile,
-		UpstreamURL:           opts.ProxyURLs[0],
-		SSLInsecureSkipVerify: opts.SSLInsecureSkipVerify,
-	}
-
-	extOptions.ServiceAccountToken = readServiceAccountToken()
+	opts.ServiceAccountToken = readServiceAccountToken()
 	log.Printf("Registering Handlers....")
-	proxyServer.RegisterRequestHandlers(auth.NewHandlers(extOptions))
-	proxyServer.RegisterRequestHandlers(cl.NewHandlers(extOptions))
+	proxyServer.RegisterRequestHandlers(auth.NewHandlers(opts))
+	proxyServer.RegisterRequestHandlers(cl.NewHandlers(opts))
 
 	var h http.Handler = proxyServer
 	if opts.RequestLogging {
