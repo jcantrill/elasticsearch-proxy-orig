@@ -6,7 +6,7 @@ import (
 	"github.com/bitly/go-simplejson"
 	"github.com/openshift/elasticsearch-proxy/pkg/clients"
 	"github.com/openshift/elasticsearch-proxy/pkg/config"
-	extensions "github.com/openshift/elasticsearch-proxy/pkg/handlers"
+	handlers "github.com/openshift/elasticsearch-proxy/pkg/handlers"
 	ac "github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/accesscontrol"
 	"github.com/openshift/elasticsearch-proxy/pkg/handlers/clusterlogging/types"
 	log "github.com/sirupsen/logrus"
@@ -14,7 +14,7 @@ import (
 
 type setString map[string]interface{}
 
-type extension struct {
+type handler struct {
 	config *config.Options
 
 	//whitelisted is the list of user and or serviceacccounts for which
@@ -28,8 +28,8 @@ type requestContext struct {
 	*types.UserInfo
 }
 
-//NewHandlers is the initializer for clusterlogging extensions
-func NewHandlers(opts *config.Options) []extensions.RequestHandler {
+//NewHandlers is the initializer for clusterlogging handlers
+func NewHandlers(opts *config.Options) []handlers.RequestHandler {
 	dm, err := ac.NewDocumentManager(*opts)
 	if err != nil {
 		log.Fatalf("Unable to initialize the cluster logging proxy handler %v", err)
@@ -38,8 +38,8 @@ func NewHandlers(opts *config.Options) []extensions.RequestHandler {
 	if err != nil {
 		log.Fatalf("Unable to initialize OpenShift Client %v", err)
 	}
-	return []extensions.RequestHandler{
-		&extension{
+	return []handlers.RequestHandler{
+		&handler{
 			opts,
 			setString{},
 			dm,
@@ -48,7 +48,7 @@ func NewHandlers(opts *config.Options) []extensions.RequestHandler {
 	}
 }
 
-func (ext *extension) Process(req *http.Request, context *extensions.RequestContext) (*http.Request, error) {
+func (ext *handler) Process(req *http.Request, context *handlers.RequestContext) (*http.Request, error) {
 	name := context.UserName
 	if ext.isWhiteListed(name) || ext.hasInfraRole(context) {
 		log.Debugf("Skipping additional processing, %s is whitelisted or has the infra role", name)
@@ -66,14 +66,14 @@ func (ext *extension) Process(req *http.Request, context *extensions.RequestCont
 	return modRequest, nil
 }
 
-func (ext *extension) isWhiteListed(name string) bool {
+func (ext *handler) isWhiteListed(name string) bool {
 	if _, ok := ext.whitelisted[name]; ok {
 		return true
 	}
 	return false
 }
 
-func (ext *extension) hasInfraRole(context *extensions.RequestContext) bool {
+func (ext *handler) hasInfraRole(context *handlers.RequestContext) bool {
 	for _, role := range context.Roles {
 		if role == ext.config.InfraRoleName {
 			log.Tracef("%s has the the Infra Role (%s)", context.UserName, ext.config.InfraRoleName)
@@ -83,7 +83,7 @@ func (ext *extension) hasInfraRole(context *extensions.RequestContext) bool {
 	return false
 }
 
-func newUserInfo(ext *extension, context *extensions.RequestContext) (*types.UserInfo, error) {
+func newUserInfo(ext *handler, context *handlers.RequestContext) (*types.UserInfo, error) {
 	projects, err := ext.fetchProjects(context)
 	if err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func newUserInfo(ext *extension, context *extensions.RequestContext) (*types.Use
 	return info, nil
 }
 
-func (ext *extension) fetchProjects(context *extensions.RequestContext) (projects []types.Project, err error) {
+func (ext *handler) fetchProjects(context *handlers.RequestContext) (projects []types.Project, err error) {
 	log.Debugf("Fetching projects for user %q", context.UserName)
 
 	var json *simplejson.Json
@@ -124,6 +124,6 @@ func (ext *extension) fetchProjects(context *extensions.RequestContext) (project
 	return projects, nil
 }
 
-func (ext *extension) Name() string {
+func (ext *handler) Name() string {
 	return "clusterlogging"
 }
