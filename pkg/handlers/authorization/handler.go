@@ -8,7 +8,7 @@ import (
 
 	clients "github.com/openshift/elasticsearch-proxy/pkg/clients"
 	"github.com/openshift/elasticsearch-proxy/pkg/config"
-	extensions "github.com/openshift/elasticsearch-proxy/pkg/handlers"
+	handlers "github.com/openshift/elasticsearch-proxy/pkg/handlers"
 )
 
 const (
@@ -23,13 +23,13 @@ type authorizationHandler struct {
 	osClient clients.OpenShiftClient
 }
 
-//NewHandlers is the initializer for this extension
-func NewHandlers(opts *config.Options) (_ []extensions.RequestHandler) {
+//NewHandlers is the initializer for this handler
+func NewHandlers(opts *config.Options) (_ []handlers.RequestHandler) {
 	osClient, err := clients.NewOpenShiftClient(*opts)
 	if err != nil {
 		log.Fatalf("Error constructing OpenShiftClient %v", err)
 	}
-	return []extensions.RequestHandler{
+	return []handlers.RequestHandler{
 		&authorizationHandler{
 			opts,
 			osClient,
@@ -41,7 +41,7 @@ func (auth *authorizationHandler) Name() string {
 	return "authorization"
 }
 
-func (auth *authorizationHandler) Process(req *http.Request, context *extensions.RequestContext) (*http.Request, error) {
+func (auth *authorizationHandler) Process(req *http.Request, context *handlers.RequestContext) (*http.Request, error) {
 	log.Tracef("Processing request in handler %q", auth.Name())
 	context.Token = getBearerTokenFrom(req)
 	if context.Token == "" {
@@ -63,7 +63,7 @@ func (auth *authorizationHandler) Process(req *http.Request, context *extensions
 	return req, nil
 }
 
-func (auth *authorizationHandler) fetchRoles(req *http.Request, context *extensions.RequestContext) {
+func (auth *authorizationHandler) fetchRoles(req *http.Request, context *handlers.RequestContext) {
 	log.Debug("Determining roles...")
 	for name, sar := range auth.config.AuthBackEndRoles {
 		if allowed, err := auth.osClient.SubjectAccessReview(context.UserName, sar.Namespace, sar.Verb, sar.Resource, sar.ResourceAPIGroup); err == nil {
