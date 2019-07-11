@@ -14,6 +14,7 @@ import (
 type DocumentManager struct {
 	config.Options
 	securityClient clients.SecurityClient
+	fnSleeper      func(time.Duration)
 }
 
 //NewDocumentManager creates an instance or returns error
@@ -23,9 +24,13 @@ func NewDocumentManager(config config.Options) (*DocumentManager, error) {
 	if err != nil {
 		return nil, err
 	}
+	sleeper := func(t time.Duration) {
+		time.Sleep(t)
+	}
 	return &DocumentManager{
 		config,
 		sgClient,
+		sleeper,
 	}, nil
 }
 
@@ -42,7 +47,7 @@ func (dm *DocumentManager) SyncACL(userInfo *cl.UserInfo) {
 	for delay := range []int{1, 1, 2, 3, 5, 8} {
 		if !dm.trySyncACL(userInfo) {
 			log.Debugf("Unable to synce ACLs, sleeping for %q seconds...", delay)
-			time.Sleep(time.Duration(delay) * time.Second)
+			dm.fnSleeper(time.Duration(delay) * time.Second)
 		}
 	}
 }

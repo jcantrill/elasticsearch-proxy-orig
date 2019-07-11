@@ -18,6 +18,7 @@ type DocType string
 const (
 	//DocTypeRoles are the security roles
 	DocTypeRoles DocType = "roles"
+	
 	//DocTypeRolesmapping are the security mappings of users to roles
 	DocTypeRolesmapping DocType = "rolesmapping"
 )
@@ -25,11 +26,22 @@ const (
 //ACLDocuments are the security documents
 type ACLDocuments map[DocType]ACLDocument
 
+//ACLDocument is a specific security document
 type ACLDocument interface {
+	//Iterate through entries that are expirable
 	Iterate() map[string]Expirable
+
+	//Remove a permission with the given name
 	Remove(name string)
+
+	//ToJson to covert the document to a JSON string
 	ToJson() (string, error)
+
+	//Type of the ACLDocument
 	Type() DocType
+
+	//Size provides the number of entries
+	Size() int
 }
 
 func (docs *ACLDocuments) Iterate() []ACLDocument {
@@ -100,6 +112,9 @@ type Roles map[string]Role
 
 func (role *Role) GetExpiresInMillis() int64 {
 	return role.ExpiresInMillis
+}
+func (roles *Roles) Size() int {
+	return len(*roles)
 }
 func (roles *Roles) Iterate() map[string]Expirable {
 	entries := map[string]Expirable{}
@@ -190,6 +205,9 @@ func (rolesMapping *RolesMapping) Iterate() map[string]Expirable {
 	return entries
 }
 
+func (rolesMapping *RolesMapping) Size() int {
+	return len(*rolesMapping)
+}
 func (roleMapping *RoleMapping) GetExpiresInMillis() int64 {
 	return roleMapping.ExpiresInMillis
 }
