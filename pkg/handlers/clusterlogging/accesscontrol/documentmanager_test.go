@@ -25,20 +25,6 @@ func (sc *securityClientFake) FetchACLs() (*security.ACLDocuments, error) {
 	return sc.docs, nil
 }
 
-func (sc *securityClientFake) FetchRolesMapping() (*security.RolesMapping, error) {
-	if sc.loadErr != nil {
-		return nil, sc.loadErr
-	}
-	return nil, nil
-}
-
-func (sc *securityClientFake) FetchRoles() (*security.Roles, error) {
-	if sc.loadErr != nil {
-		return nil, sc.loadErr
-	}
-	return nil, nil
-}
-
 func (sc *securityClientFake) FlushACL(doc security.ACLDocuments) error {
 	if sc.writeErr != nil {
 		return sc.writeErr
@@ -78,8 +64,8 @@ var _ = Describe("DocumentManager", func() {
 
 		BeforeEach(func() {
 			fakeSecurityClient.docs = &security.ACLDocuments{
-				security.DocTypeRoles:        &security.Roles{},
-				security.DocTypeRolesmapping: &security.RolesMapping{},
+				security.DocTypeRoles:        security.NewRoles(),
+				security.DocTypeRolesmapping: security.NewRolesMapping(),
 			}
 		})
 
@@ -106,7 +92,7 @@ var _ = Describe("DocumentManager", func() {
 			It("should skip additional processing", func() {
 				dm.Options = config.Options{}
 				dm.Options.InfraRoleName = "foo"
-					fakeSecurityClient.loadErr = fmt.Errorf("an error %s", "")
+				fakeSecurityClient.loadErr = fmt.Errorf("an error %s", "")
 				sleeper := func(t time.Duration) {
 					//This function should not be calledc
 					Expect(true).Should(BeFalse())

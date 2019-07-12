@@ -18,7 +18,7 @@ type DocType string
 const (
 	//DocTypeRoles are the security roles
 	DocTypeRoles DocType = "roles"
-	
+
 	//DocTypeRolesmapping are the security mappings of users to roles
 	DocTypeRolesmapping DocType = "rolesmapping"
 )
@@ -42,6 +42,9 @@ type ACLDocument interface {
 
 	//Size provides the number of entries
 	Size() int
+
+	//Version of the document
+	Version() int
 }
 
 func (docs *ACLDocuments) Iterate() []ACLDocument {
@@ -57,11 +60,17 @@ func (docs *ACLDocuments) Set(aclDoc ACLDocument) {
 }
 
 func (docs *ACLDocuments) Roles() *Roles {
-	return (*docs)[DocTypeRoles].(*Roles)
+	if val, exists := (*docs)[DocTypeRoles]; exists {
+		return val.(*Roles)
+	}
+	return nil
 }
 
 func (docs *ACLDocuments) RolesMapping() *RolesMapping {
-	return (*docs)[DocTypeRolesmapping].(*RolesMapping)
+	if val, exists := (*docs)[DocTypeRolesmapping]; exists {
+		return val.(*RolesMapping)
+	}
+	return nil
 }
 
 //AddUser permissions to the ACL documents
@@ -108,39 +117,52 @@ type Expirable interface {
 //     indices:
 //       indexName:
 //         docType: [permissions]
-type Roles map[string]Role
+type Roles struct {
+	roleNames  map[string]Role
+	DocVersion int
+}
+
+func NewRoles() *Roles {
+	return &Roles{roleNames: map[string]Role{}}
+}
 
 func (role *Role) GetExpiresInMillis() int64 {
 	return role.ExpiresInMillis
 }
+
+func (roles *Roles) Version() int {
+	return roles.DocVersion
+}
+
 func (roles *Roles) Size() int {
-	return len(*roles)
+	return len(roles.roleNames)
 }
 func (roles *Roles) Iterate() map[string]Expirable {
 	entries := map[string]Expirable{}
-	for name, entry := range *roles {
-		entries[name] = &entry
+	for name, entry := range roles.roleNames {
+		copy := entry
+		entries[name] = &copy
 	}
 	return entries
 }
 
 func (roles *Roles) Set(name string, role Role) {
-	(*roles)[name] = role
+	(roles.roleNames)[name] = role
 }
 
 func (roles *Roles) Remove(name string) {
-	delete(*roles, name)
+	delete(roles.roleNames, name)
 }
 
 func (roles *Roles) Type() DocType {
 	return DocTypeRoles
 }
 func (roles *Roles) ToYaml() (string, error) {
-	return toYaml(roles)
+	return toYaml(roles.roleNames)
 }
 
 func (roles *Roles) ToJson() (string, error) {
-	return ToJson(roles)
+	return ToJson(roles.roleNames)
 }
 
 type Role struct {
@@ -195,28 +217,39 @@ func (rolesmapping *RolesMapping) FromJson(acl string) error {
 //    expires:
 //    users:
 //    groups:
-type RolesMapping map[string]RoleMapping
+type RolesMapping struct {
+	roleNames  map[string]RoleMapping
+	DocVersion int
+}
+
+func NewRolesMapping() *RolesMapping {
+	return &RolesMapping{roleNames: map[string]RoleMapping{}}
+}
 
 func (rolesMapping *RolesMapping) Iterate() map[string]Expirable {
 	entries := map[string]Expirable{}
-	for name, entry := range *rolesMapping {
-		entries[name] = &entry
+	for name, entry := range rolesMapping.roleNames {
+		copy := entry
+		entries[name] = &copy
 	}
 	return entries
 }
 
 func (rolesMapping *RolesMapping) Size() int {
-	return len(*rolesMapping)
+	return len(rolesMapping.roleNames)
+}
+func (rolesMapping *RolesMapping) Version() int {
+	return rolesMapping.DocVersion
 }
 func (roleMapping *RoleMapping) GetExpiresInMillis() int64 {
 	return roleMapping.ExpiresInMillis
 }
 
 func (rolesMapping *RolesMapping) Set(name string, rolemapping RoleMapping) {
-	(*rolesMapping)[name] = rolemapping
+	(rolesMapping.roleNames)[name] = rolemapping
 }
 func (rolesMapping *RolesMapping) Remove(name string) {
-	delete(*rolesMapping, name)
+	delete(rolesMapping.roleNames, name)
 }
 
 type RoleMapping struct {
@@ -229,11 +262,11 @@ func (rolesmapping *RolesMapping) Type() DocType {
 }
 
 func (rolesmapping *RolesMapping) ToYaml() (string, error) {
-	return toYaml(rolesmapping)
+	return toYaml(rolesmapping.roleNames)
 }
 
 func (rolesmapping *RolesMapping) ToJson() (string, error) {
-	return ToJson(rolesmapping)
+	return ToJson(rolesmapping.roleNames)
 }
 
 func newSecurityDocumentPermissions(user *cl.UserInfo) IndexPermissions {
