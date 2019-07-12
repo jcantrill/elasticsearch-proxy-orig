@@ -26,8 +26,8 @@ var _ = Describe("Generating Security roles", func() {
 	)
 	BeforeEach(func() {
 		docs = security.ACLDocuments{}
-		docs.Set(&security.Roles{})
-		docs.Set(&security.RolesMapping{})
+		docs.Set(security.NewRoles())
+		docs.Set(security.NewRolesMapping())
 		users = []cl.UserInfo{
 			{
 				Username: "user2.bar@email.com",

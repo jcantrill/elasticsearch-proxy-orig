@@ -19,12 +19,6 @@ const (
 type SecurityClient interface {
 	FetchACLs() (*security.ACLDocuments, error)
 
-	//FetchRolesMapping for security
-	FetchRolesMapping() (*security.RolesMapping, error)
-
-	//FetchRoles for security
-	FetchRoles() (*security.Roles, error)
-
 	//FlushACL documents from the manager to Elasticsearch
 	FlushACL(doc security.ACLDocuments) error
 }
@@ -87,6 +81,7 @@ func decodeRolesACLDocumentFrom(item MGetResponseItem) (*security.Roles, error) 
 	if err != nil {
 		return nil, err
 	}
+	roles.DocVersion = item.Version
 	log.Debugf("Roles: %s", sRoles)
 	return roles, nil
 }
@@ -126,6 +121,7 @@ func decodeRolesmappingACLDocumentFrom(item MGetResponseItem) (*security.RolesMa
 	if err != nil {
 		return nil, err
 	}
+	rolesmapping.DocVersion = item.Version
 	log.Debugf("Rolesmapping: %s", sRolesMapping)
 	return rolesmapping, nil
 }
@@ -168,24 +164,6 @@ func (sg *DefaultESSecurityClient) FetchACLs() (*security.ACLDocuments, error) {
 	return docs, nil
 }
 
-func (sg *DefaultESSecurityClient) FetchRoles() (*security.Roles, error) {
-	log.Debug("Fetching Security roles...")
-	resp, err := sg.esClient.Get("/.security/security/roles")
-	if err != nil {
-		return nil, err
-	}
-	return decodeRolesACLDocument(resp)
-}
-
-func (sg *DefaultESSecurityClient) FetchRolesMapping() (*security.RolesMapping, error) {
-	log.Debug("Fetching Security rolesmapping...")
-	resp, err := sg.esClient.Get("/.security/security/rolesmapping")
-	if err != nil {
-		return nil, err
-	}
-	return decodeRolesmappingACLDocument(resp)
-}
-
 func encodeACLDocument(doc security.ACLDocument) (string, error) {
 	log.Tracef("Encoding %s ACL Document...", doc.Type())
 	json, err := doc.ToJson()
@@ -204,7 +182,8 @@ func (sg *DefaultESSecurityClient) FlushACL(docs security.ACLDocuments) error {
 		if err != nil {
 			return err
 		}
-		if _, err = sg.esClient.Put(fmt.Sprintf("/.security/security/%s", doc.Type()), sDoc); err != nil {
+		path := fmt.Sprintf("/.security/security/%s?version=%d", doc.Type(), doc.Version())
+		if _, err = sg.esClient.Put(path, sDoc); err != nil {
 			return err
 		}
 	}
